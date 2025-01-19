@@ -7,7 +7,6 @@ from handlers import start, set_profile, log_water, log_food, log_workout, check
 
 
 logging.basicConfig(level=logging.INFO)
-
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
