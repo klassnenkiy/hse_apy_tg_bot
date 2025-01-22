@@ -437,14 +437,7 @@ def setup_handlers(dp):
 if __name__ == "__main__":
     import logging
     from aiohttp import web
-
     logging.basicConfig(level=logging.INFO)
-
-    # Указываем порт для привязки
     port = int(os.environ.get("PORT", 8080))
-
-    # Настраиваем приложение
     setup_handlers(dp)
-
-    # Запуск aiohttp-приложения
     web.run_app(app, host="0.0.0.0", port=port)
