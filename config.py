@@ -7,7 +7,6 @@ API_TOKEN = os.getenv("API_TOKEN")
 OPENWEATHER_API_KEY = os.getenv("OPENWEATHER_API_KEY")
 NUTRITIONIX_API_KEY = os.getenv("NUTRITIONIX_API_KEY")
 NUTRITIONIX_APP_ID = os.getenv("NUTRITIONIX_APP_ID")
-WEBHOOK_URL = os.getenv("WEBHOOK_URL")
 
 if not API_TOKEN:
     raise ValueError("Переменная окружения API_TOKEN не установлена!")
@@ -20,6 +19,3 @@ if not NUTRITIONIX_API_KEY:
 
 if not NUTRITIONIX_APP_ID:
     raise ValueError("Переменная окружения NUTRITIONIX_APP_ID не установлена!")
-
-if not WEBHOOK_URL:
-    raise ValueError("Переменная окружения WEBHOOK_URL не установлена!")

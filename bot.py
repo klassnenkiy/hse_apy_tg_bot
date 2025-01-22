@@ -13,7 +13,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from googletrans import Translator
 from aiohttp import web
-from config import API_TOKEN, OPENWEATHER_API_KEY, NUTRITIONIX_API_KEY, NUTRITIONIX_APP_ID, WEBHOOK_URL
+from config import API_TOKEN, OPENWEATHER_API_KEY, NUTRITIONIX_API_KEY, NUTRITIONIX_APP_ID
 from states import ProfileSetup
 
 router = Router()
