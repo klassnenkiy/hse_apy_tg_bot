@@ -12,8 +12,6 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
 
 # Токены для Telegram-бота и OpenWeather API
-API_TOKEN = '7576506747:AAEDxUV5Vj6XmLgn9WAYyTPmKwh7Aa4_xNw'
-OPENWEATHER_API_KEY = 'afb6147ee48eace31b567b026d07535e'
 
 # Инициализация роутера и логирования
 router = Router()

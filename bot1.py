@@ -12,9 +12,8 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
+from config import API_TOKEN
 
-API_TOKEN = '7576506747:AAEDxUV5Vj6XmLgn9WAYyTPmKwh7Aa4_xNw'
-OPENWEATHER_API_KEY = 'afb6147ee48eace31b567b026d07535e'
 
 router = Router()
 
