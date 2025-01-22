@@ -21,8 +21,7 @@ router = Router()
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher(storage=MemoryStorage(), bot=bot)
-app = web.Application()
+dp = Dispatcher(bot=bot)
 
 users = {}
 
@@ -33,16 +32,14 @@ async def on_shutdown(app):
     logging.info("Bot is shutting down...")
     await bot.session.close()
 
+# Основной обработчик для асинхронного polling
 async def start_polling():
     logging.info("Starting polling...")
     await dp.start_polling()
 
-
-
-# Старт polling
-async def start_polling():
-    logging.info("Starting polling...")
-    await dp.start_polling()
+# Функция для запуска веб-сервера aiohttp
+async def on_startup_web(app):
+    logging.info("Starting web server...")
 
 main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Настроить профиль", callback_data="set_profile")],
@@ -431,18 +428,25 @@ def setup_handlers(dp):
     dp.callback_query.register(set_profile, lambda c: c.data == 'set_profile')
     logging.basicConfig(level=logging.INFO)
 
+
 async def main():
-    dp.include_router(router)
-    app.on_startup.append(on_startup)
+    # Настройка веб-приложения aiohttp
+    app = web.Application()
+    app.on_startup.append(on_startup_web)
     app.on_shutdown.append(on_shutdown)
     setup_handlers(dp)
+    # Добавляем маршруты
+    app.router.add_get('/', lambda request: web.Response(text="Hello, world"))
 
-    # Create tasks for both polling and web server
-    polling_task = asyncio.create_task(start_polling())  # Start polling
-    web_server_task = asyncio.create_task(web.run_app(app, host="0.0.0.0", port=8080))  # Start web server
+    # Регистрация маршрутов для Aiogram
+    dp.include_router(router)
 
-    # Run both tasks concurrently
-    await asyncio.gather(polling_task, web_server_task)
+    # Запускаем бота и веб-сервер в одном цикле событий
+    await asyncio.gather(
+        start_polling(),  # Запуск бота (Polling)
+        web.run_app(app, host="0.0.0.0", port=8080)  # Запуск веб-сервера
+    )
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
