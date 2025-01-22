@@ -337,54 +337,33 @@ async def log_workout(message: Message):
     except ValueError:
         await message.reply("Пожалуйста, введите корректное количество минут для тренировки.")
 
-async def plot_progress(user_id):
-    user = users.get(user_id)
-    if not user:
-        return None
 
-    # Используем количество записей как основу для оси X
-    water_progress = [user['logged_water']]
-    calorie_progress = [user['logged_calories']]
 
-    # Генерируем индексы обновлений
-    updates = range(1, len(water_progress) + 1)
+async def generate_progress_pie_chart(water_consumed, water_goal, calories_consumed, calories_goal):
+    water_percentage = min(water_consumed / water_goal, 1.0) * 100
+    water_remaining = 100 - water_percentage
 
-    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+    calories_percentage = min(calories_consumed / calories_goal, 1.0) * 100
+    calories_remaining = 100 - calories_percentage
 
-    ax[0].plot(updates, water_progress, marker='o', color='blue')
-    ax[0].set_title('Прогресс по воде')
-    ax[0].set_xlabel('Обновления')
-    ax[0].set_ylabel('Мл воды')
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10, 5))
 
-    ax[1].plot(updates, calorie_progress, marker='o', color='green')
-    ax[1].set_title('Прогресс по калориям')
-    ax[1].set_xlabel('Обновления')
-    ax[1].set_ylabel('Ккал')
+    ax1.pie([water_percentage, water_remaining], labels=['Потреблено', 'Осталось'],
+            autopct='%1.1f%%', startangle=90, explode=(0.1, 0), pctdistance=0.85)
+    ax1.set_title("Прогресс по воде")
+
+    ax2.pie([calories_percentage, calories_remaining], labels=['Потреблено', 'Осталось'],
+            autopct='%1.1f%%', startangle=90, explode=(0.1, 0), pctdistance=0.85)
+    ax2.set_title("Прогресс по калориям")
 
     buf = io.BytesIO()
+    plt.tight_layout()
     plt.savefig(buf, format="png")
     buf.seek(0)
     plt.close(fig)
+
     return buf
 
-
-async def get_low_calorie_food():
-    url = "https://world.openfoodfacts.org/cgi/search.pl?action=process&sort_by=calories&json=true"
-    response = requests.get(url)
-    if response.status_code == 200:
-        data = response.json()
-        products = data.get('products', [])
-        low_calorie_products = set()
-
-        for product in products:
-            calories = product.get('nutriments', {}).get('energy-kcal_100g', 0)
-            if calories <= 50:
-                low_calorie_products.add(
-                    (product.get('product_name', 'Неизвестно'), calories)
-                )
-
-        return [{'name': name, 'calories': calories} for name, calories in low_calorie_products]
-    return None
 
 
 @router.message(Command("check_progress"))
@@ -407,14 +386,37 @@ async def check_progress(message: Message):
                             f"Калории:\n"
                             f"{calorie_progress}\n"
                             f"Баланс: {balance_calories} ккал.")
-        graph = await plot_progress(user_id)
-        if graph:
-            graph.seek(0)
-            await bot.send_photo(message.chat.id, photo=types.FSInputFile(graph, filename="progress.png"))
-        else:
-            await message.reply("Не удалось построить график.")
+
+        chart = await generate_progress_pie_chart(
+            water_consumed=user['logged_water'],
+            water_goal=user['water_goal'],
+            calories_consumed=user['logged_calories'],
+            calories_goal=user['calorie_goal']
+        )
+
+        await bot.send_photo(message.chat.id, photo=types.InputFile(chart, filename="progress.png"))
     else:
         await message.reply("Сначала настройте профиль с помощью команды /set_profile.")
+
+
+async def get_low_calorie_food():
+    url = "https://world.openfoodfacts.org/cgi/search.pl?action=process&sort_by=calories&json=true"
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        products = data.get('products', [])
+        low_calorie_products = set()
+
+        for product in products:
+            calories = product.get('nutriments', {}).get('energy-kcal_100g', 0)
+            if calories <= 50:
+                low_calorie_products.add(
+                    (product.get('product_name', 'Неизвестно'), calories)
+                )
+
+        return [{'name': name, 'calories': calories} for name, calories in low_calorie_products]
+    return None
+
 
 @router.message(Command("get_recommendations"))
 async def get_recommendations(message: Message):
