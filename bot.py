@@ -23,6 +23,7 @@ logging.basicConfig(level=logging.INFO)
 matplotlib.use('Agg')
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
+WEBHOOK_URL = f"https://hse-apy-tg-bot.onrender.com/webhook"
 
 users = {}
 
