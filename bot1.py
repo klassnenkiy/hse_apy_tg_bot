@@ -21,7 +21,7 @@ router = Router()
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher(storage=MemoryStorage(), bot=bot)
+dp = Dispatcher(storage=MemoryStorage())
 app = web.Application()
 
 users = {}
