@@ -20,10 +20,15 @@
 [https://youtu.be/mpeunKIr3YQ](https://youtu.be/mpeunKIr3YQ)
 
 ![1](https://github.com/user-attachments/assets/27121cb1-60cd-4e0e-b81b-f92a32f8f9cf)
+
 ![2](https://github.com/user-attachments/assets/a8d244d3-7662-4a5c-af3e-7f881a8a89f7)
+
 ![3](https://github.com/user-attachments/assets/f2e0e549-505e-44fb-9609-1dff4c2f989a)
+
 ![4](https://github.com/user-attachments/assets/a256ada7-fee5-437b-8c57-8e7158a789db)
+
 ![5](https://github.com/user-attachments/assets/9eb52cc4-c192-4dcc-a8a8-e85aa06d8ca5)
+
 ![6](https://github.com/user-attachments/assets/9f33e6f8-d8c9-4bb2-bddc-2ff081f45f2a)
 
 ## Основные возможности
