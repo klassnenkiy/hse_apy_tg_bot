@@ -436,10 +436,13 @@ async def main():
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
     setup_handlers(dp)
-    polling_task = asyncio.create_task(start_polling())
-    port = int(os.environ.get("PORT", 8080))
-    await web.run_app(app, host="0.0.0.0", port=port)
-    await polling_task
+
+    # Create tasks for both polling and web server
+    polling_task = asyncio.create_task(start_polling())  # Start polling
+    web_server_task = asyncio.create_task(web.run_app(app, host="0.0.0.0", port=8080))  # Start web server
+
+    # Run both tasks concurrently
+    await asyncio.gather(polling_task, web_server_task)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
