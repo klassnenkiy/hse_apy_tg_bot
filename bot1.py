@@ -433,19 +433,14 @@ def setup_handlers(dp):
 
 async def main():
     dp.include_router(router)
-
-    # Initialize app and set up startup/shutdown
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
     setup_handlers(dp)
-    # Start the aiogram polling in the background (using asyncio.create_task)
-    asyncio.create_task(start_polling())
-
-    # Run the aiohttp app (aiohttp will handle its own event loop)
+    polling_task = asyncio.create_task(start_polling())
     port = int(os.environ.get("PORT", 8080))
     await web.run_app(app, host="0.0.0.0", port=port)
+    await polling_task
 
-# Starting the event loop
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
     asyncio.run(main())
