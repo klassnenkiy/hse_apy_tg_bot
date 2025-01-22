@@ -5,6 +5,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 matplotlib.use('Agg')
 import io
+import os
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
@@ -13,7 +14,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
 from config import API_TOKEN, OPENWEATHER_API_KEY
-
+from aiohttp import web
 
 router = Router()
 
@@ -21,8 +22,30 @@ logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
-
+WEBHOOK_URL = f"https://hse-apy-tg-bot.onrender.com/webhook"
 users = {}
+
+
+async def on_startup(app):
+    await bot.set_webhook(WEBHOOK_URL)
+    logging.info(f"Webhook установлен на {WEBHOOK_URL}")
+
+async def on_shutdown(app):
+    logging.info("Удаление Webhook...")
+    await bot.delete_webhook()
+    await bot.session.close()
+
+async def handle_webhook(request):
+    body = await request.json()
+    update = types.Update(**body)
+    await dp.feed_update(bot, update)
+    return web.Response()
+
+
+app = web.Application()
+app.router.add_post("/webhook", handle_webhook)
+app.on_startup.append(on_startup)
+app.on_shutdown.append(on_shutdown)
 
 main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Настроить профиль", callback_data="set_profile")],
@@ -414,3 +437,4 @@ def setup_handlers(dp):
 if __name__ == "__main__":
     setup_handlers(dp)
     asyncio.run(dp.start_polling(bot))
+    web.run_app(app, host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
