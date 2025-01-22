@@ -22,18 +22,15 @@ logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
-WEBHOOK_URL = f"https://hse-apy-tg-bot.onrender.com/webhook"
-users = {}
 
+users = {}
+WEBHOOK_URL = f"https://hse-apy-tg-bot.onrender.com/webhook"
 
 async def on_startup(app):
     await bot.set_webhook(WEBHOOK_URL)
     logging.info(f"Webhook установлен на {WEBHOOK_URL}")
+    asyncio.create_task(check_and_reestablish_webhook())
 
-async def on_shutdown(app):
-    logging.info("Удаление Webhook...")
-    await bot.delete_webhook()
-    await bot.session.close()
 
 async def handle_webhook(request):
     body = await request.json()
@@ -41,11 +38,17 @@ async def handle_webhook(request):
     await dp.feed_update(bot, update)
     return web.Response()
 
+async def check_and_reestablish_webhook():
+    while True:
+        webhook_info = await bot.get_webhook_info()
+        if not webhook_info.url:
+            logging.info("Webhook был удален. Устанавливаем его снова...")
+            await bot.set_webhook(WEBHOOK_URL)
+        await asyncio.sleep(360)
 
 app = web.Application()
 app.router.add_post("/webhook", handle_webhook)
 app.on_startup.append(on_startup)
-app.on_shutdown.append(on_shutdown)
 
 main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Настроить профиль", callback_data="set_profile")],
