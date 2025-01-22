@@ -12,7 +12,7 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
-from config import API_TOKEN
+from config import API_TOKEN, OPENWEATHER_API_KEY
 
 
 router = Router()
