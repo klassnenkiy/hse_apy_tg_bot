@@ -21,7 +21,7 @@ router = Router()
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
+dp = Dispatcher(bot, storage=MemoryStorage())
 app = web.Application()
 
 users = {}
@@ -33,7 +33,6 @@ async def on_shutdown(app):
     logging.info("Bot is shutting down...")
     await bot.session.close()
 
-# Старт polling
 async def start_polling():
     logging.info("Starting polling...")
     await dp.start_polling()
@@ -427,23 +426,26 @@ async def get_recommendations(message: Message):
         await message.reply("Не удалось получить рекомендации.")
 
 
-async def main():
-    dp.include_router(router)
-    app.on_startup.append(on_startup)
-    app.on_shutdown.append(on_shutdown)
-    setup_handlers(dp)
-    asyncio.create_task(start_polling())
-
-    port = int(os.environ.get("PORT", 8080))
-    await web.run_app(app, host="0.0.0.0", port=port)
-
 def setup_handlers(dp):
     dp.message.register(start, Command("start"))
     dp.callback_query.register(set_profile, lambda c: c.data == 'set_profile')
     logging.basicConfig(level=logging.INFO)
 
+async def main():
+    dp.include_router(router)
 
+    # Initialize app and set up startup/shutdown
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
+
+    # Start the aiogram polling in the background
+    asyncio.create_task(start_polling())
+
+    # Run the aiohttp app
+    port = int(os.environ.get("PORT", 8080))
+    await web.run_app(app, host="0.0.0.0", port=port)
+
+# Starting the event loop
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(main())
+    asyncio.run(main())
