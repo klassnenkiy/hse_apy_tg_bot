@@ -1,10 +1,10 @@
-import asyncio
+import random
 import logging
 import requests
 import matplotlib
 import matplotlib.pyplot as plt
-matplotlib.use('Agg')
 import io
+import os
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
@@ -12,18 +12,47 @@ from aiogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton, B
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.fsm.state import State, StatesGroup
+from googletrans import Translator
+from aiohttp import web
 
 API_TOKEN = '7576506747:AAGB5ahab2brGxmk4h08_9Eqrhblt2x_mZE'
 OPENWEATHER_API_KEY = 'afb6147ee48eace31b567b026d07535e'
+NUTRITIONIX_API_KEY = '9e09d30128433c422b48d4268ee45079'
+NUTRITIONIX_APP_ID = 'fef5e378'
+WEBHOOK_URL = f"https://hse-apy-tg-bot.onrender.com/webhook"
 
 router = Router()
+translator = Translator()
 
 logging.basicConfig(level=logging.INFO)
-
+matplotlib.use('Agg')
 bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 users = {}
+
+
+async def on_startup(app):
+    await bot.set_webhook(WEBHOOK_URL)
+    logging.info(f"Webhook установлен на {WEBHOOK_URL}")
+
+async def on_shutdown(app):
+    logging.info("Удаление Webhook...")
+    await bot.delete_webhook()
+    await bot.session.close()
+
+async def handle_webhook(request):
+    body = await request.json()
+    update = types.Update(**body)
+    await dp.feed_update(bot, update)
+    return web.Response()
+
+
+app = web.Application()
+app.router.add_post("/webhook", handle_webhook)
+app.on_startup.append(on_startup)
+app.on_shutdown.append(on_shutdown)
+
 
 main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Настроить профиль", callback_data="set_profile")],
@@ -35,6 +64,7 @@ main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Получить рекомендации", callback_data="get_recommendations")]
 ])
 
+
 class ProfileSetup(StatesGroup):
     weight = State()
     height = State()
@@ -43,16 +73,19 @@ class ProfileSetup(StatesGroup):
     city = State()
     food_quantity = State()
 
+
 def calculate_water_goal(weight, activity, temperature):
     base = weight * 30
     activity_bonus = (activity // 30) * 500
     weather_bonus = 500 if temperature > 25 else 0
     return base + activity_bonus + weather_bonus
 
+
 def calculate_calorie_goal(weight, height, age, activity):
     base = 10 * weight + 6.25 * height - 5 * age
     activity_bonus = (activity // 30) * 50
     return base + activity_bonus
+
 
 def get_weather(city):
     url = f'http://api.openweathermap.org/data/2.5/weather?q={city}&appid={OPENWEATHER_API_KEY}&units=metric'
@@ -61,6 +94,7 @@ def get_weather(city):
         data = response.json()
         return data['main']['temp']
     return None
+
 
 def get_food_info(product_name):
     url = f"https://world.openfoodfacts.org/cgi/search.pl?action=process&search_terms={product_name}&json=true"
@@ -75,6 +109,39 @@ def get_food_info(product_name):
                 'calories': first_product.get('nutriments', {}).get('energy-kcal_100g', 0)
             }
     return
+
+
+def translate_to_english(text):
+    translation = translator.translate(text, src='ru', dest='en')
+    return translation.text
+
+
+async def get_nutrition_info_from_nutritionix(product_name):
+    translated_name = translate_to_english(product_name)
+
+    url = "https://trackapi.nutritionix.com/v2/natural/nutrients"
+    headers = {
+        'x-app-id': NUTRITIONIX_APP_ID,
+        'x-app-key': NUTRITIONIX_API_KEY,
+        'Content-Type': 'application/json'
+    }
+    body = {
+        "query": translated_name
+    }
+
+    response = requests.post(url, headers=headers, json=body)
+
+    if response.status_code == 200:
+        data = response.json()
+        if 'foods' in data:
+            food = data['foods'][0]
+            product_name = food['food_name']
+            calories_per_100g = food['nf_calories']
+            return {
+                'name': product_name,
+                'calories': calories_per_100g
+            }
+    return None
 
 
 @router.message(Command("start"))
@@ -130,6 +197,7 @@ async def handle_menu(callback_query: types.CallbackQuery, state: FSMContext):
         )
         await callback_query.message.answer(commands)
 
+
 @router.message(Command("show_commands"))
 async def show_commands(message: Message):
     commands = (
@@ -144,10 +212,12 @@ async def show_commands(message: Message):
     )
     await message.reply(commands)
 
+
 @router.message(Command("set_profile"))
 async def set_profile(message: Message, state: FSMContext):
     await state.set_state(ProfileSetup.weight)
     await message.answer("Введите Ваш вес (в кг):")
+
 
 @router.message(ProfileSetup.weight)
 async def process_weight(message: Message, state: FSMContext):
@@ -158,6 +228,7 @@ async def process_weight(message: Message, state: FSMContext):
     except ValueError:
         await message.reply("Пожалуйста, введите корректное число для веса.")
 
+
 @router.message(ProfileSetup.height)
 async def process_height(message: Message, state: FSMContext):
     try:
@@ -166,6 +237,7 @@ async def process_height(message: Message, state: FSMContext):
         await message.reply("Введите Ваш возраст:")
     except ValueError:
         await message.reply("Пожалуйста, введите корректное число для роста.")
+
 
 @router.message(ProfileSetup.age)
 async def process_age(message: Message, state: FSMContext):
@@ -176,6 +248,7 @@ async def process_age(message: Message, state: FSMContext):
     except ValueError:
         await message.reply("Пожалуйста, введите корректное число для возраста.")
 
+
 @router.message(ProfileSetup.activity)
 async def process_activity(message: Message, state: FSMContext):
     try:
@@ -184,6 +257,7 @@ async def process_activity(message: Message, state: FSMContext):
         await message.reply("В каком городе вы находитесь?")
     except ValueError:
         await message.reply("Пожалуйста, введите корректное число для активности.")
+
 
 @router.message(ProfileSetup.city)
 async def process_city(message: Message, state: FSMContext):
@@ -213,8 +287,10 @@ async def process_city(message: Message, state: FSMContext):
         "burned_calories": 0
     }
 
-    await message.reply(f"Профиль сохранён!\n\nНорма воды: {water_goal} мл\nНорма калорий: {calorie_goal} ккал", parse_mode=ParseMode.HTML)
+    await message.reply(f"Профиль сохранён!\n\nНорма воды: {water_goal} мл\nНорма калорий: {calorie_goal} ккал",
+                        parse_mode=ParseMode.HTML)
     await state.clear()
+
 
 @router.message(Command("log_water"))
 async def log_water(message: Message):
@@ -235,6 +311,7 @@ async def log_water(message: Message):
     except ValueError:
         await message.reply("Пожалуйста, укажите корректное количество воды в миллилитрах.")
 
+
 @router.message(Command("log_food"))
 async def log_food(message: Message, state: FSMContext):
     command_parts = message.text.split(maxsplit=1)
@@ -242,7 +319,8 @@ async def log_food(message: Message, state: FSMContext):
         await message.reply("Пожалуйста, укажите название продукта. (например: /log_food банан)")
         return
     product_name = command_parts[1]
-    food_info = get_food_info(product_name)
+    food_info = await get_nutrition_info_from_nutritionix(product_name)
+
     if food_info:
         calories_per_100g = food_info['calories']
         await state.update_data(product_name=food_info['name'], calories_per_100g=calories_per_100g)
@@ -251,11 +329,13 @@ async def log_food(message: Message, state: FSMContext):
     else:
         await message.reply("Не удалось найти информацию о продукте. Попробуйте другое название.")
 
+
 @router.message(ProfileSetup.food_quantity)
 async def process_food_quantity(message: Message, state: FSMContext):
     try:
         grams = int(message.text)
         data = await state.get_data()
+
         calories_per_100g = data['calories_per_100g']
         consumed_calories = (calories_per_100g * grams) / 100
 
@@ -263,7 +343,8 @@ async def process_food_quantity(message: Message, state: FSMContext):
         if user_id in users:
             users[user_id]['logged_calories'] += consumed_calories
             await message.reply(
-                f"Записано: {consumed_calories:.2f} ккал. Общая сумма потребленных калорий: {users[user_id]['logged_calories']:.2f} ккал.")
+                f"Записано: {consumed_calories:.2f} ккал. Общая сумма потребленных калорий: {users[user_id]['logged_calories']:.2f} ккал."
+            )
         else:
             await message.reply("Сначала настройте профиль с помощью команды /set_profile.")
 
@@ -317,12 +398,12 @@ async def log_workout(message: Message):
     except ValueError:
         await message.reply("Пожалуйста, введите корректное количество минут для тренировки.")
 
+
 @router.message(Command("check_progress"))
 async def check_progress(message: Message):
     user_id = message.from_user.id
     if user_id in users:
         user = users[user_id]
-
         water_progress = f"Выпито: {user['logged_water']} мл из {user['water_goal']} мл."
         remaining_water = user['water_goal'] - user['logged_water']
 
@@ -353,13 +434,15 @@ def create_progress_chart(user):
     ax[0].bar(['Выпито', 'Осталось'],
               [water_progress, water_goal - water_progress],
               color=['#1f77b4', '#ff7f0e'], edgecolor='black')
-    ax[0].set_title(f'Прогресс по воде ({water_progress} мл из {water_goal} мл)', fontsize=14, fontweight='bold', color='#1f77b4')
+    ax[0].set_title(f'Прогресс по воде ({water_progress} мл из {water_goal} мл)', fontsize=14, fontweight='bold',
+                    color='#1f77b4')
     ax[0].set_ylim(0, water_goal * 1.2)
     ax[0].set_facecolor('#f7f7f7')
     ax[1].bar(['Потреблено', 'Осталось'],
               [calories_progress, calorie_goal - calories_progress],
               color=['#ff6347', '#98c379'], edgecolor='black')
-    ax[1].set_title(f'Прогресс по калориям ({calories_progress} ккал из {calorie_goal} ккал)', fontsize=14, fontweight='bold', color='#ff6347')
+    ax[1].set_title(f'Прогресс по калориям ({calories_progress} ккал из {calorie_goal} ккал)', fontsize=14,
+                    fontweight='bold', color='#ff6347')
     ax[1].set_ylim(0, calorie_goal * 1.2)
     ax[1].set_facecolor('#f7f7f7')
     plt.tight_layout()
@@ -368,34 +451,53 @@ def create_progress_chart(user):
     buf.seek(0)
     return buf
 
+
 async def get_low_calorie_food():
-    url = "https://world.openfoodfacts.org/cgi/search.pl?action=process&sort_by=calories&json=true"
-    response = requests.get(url)
+    url = "https://trackapi.nutritionix.com/v2/search/instant/"
+    headers = {
+        "x-app-id": NUTRITIONIX_APP_ID,
+        "x-app-key": NUTRITIONIX_API_KEY,
+        "Content-Type": "application/json"
+    }
+    params = {
+        "query": "low calorie"
+    }
+    response = requests.get(url, headers=headers, params=params)
     if response.status_code == 200:
         data = response.json()
-        products = data.get('products', [])
-        low_calorie_products = set()
-        for product in products:
-            calories = product.get('nutriments', {}).get('energy-kcal_100g', 0)
+        food_items = data.get("common", [])
+        if not food_items:
+            return []
+        low_calorie_foods = []
+        for food in food_items:
+            calories = food.get("nf_calories", 0)
             if calories <= 50:
-                low_calorie_products.add(
-                    (product.get('product_name', 'Неизвестно'), calories)
-                )
+                low_calorie_foods.append({
+                    'name': food.get("food_name", 'Неизвестно'),
+                    'calories': calories
+                })
+        if low_calorie_foods:
+            recommendations = random.sample(low_calorie_foods, k=min(5, len(low_calorie_foods)))
+            return recommendations
+        else:
+            return []
 
-        return [{'name': name, 'calories': calories} for name, calories in low_calorie_products]
-    return None
+    else:
+        return None
 
 
 @router.message(Command("get_recommendations"))
 async def get_recommendations(message: Message):
     products = await get_low_calorie_food()
+
     if products:
         response = "Рекомендованные продукты с низким содержанием калорий:\n"
         for product in products[:5]:
-            response += f"{product['name']} — {product['calories']} ккал на 100 г\n"
+            response += f"{product['name']} — {product['calories']} ккал\n"
         await message.reply(response)
     else:
         await message.reply("Не удалось получить рекомендации.")
+
 
 @router.message(Command("preset_profile"))
 async def preset_profile(message: Message):
@@ -415,7 +517,8 @@ async def preset_profile(message: Message):
         return
 
     water_goal = calculate_water_goal(preset_data['weight'], preset_data['activity'], temperature)
-    calorie_goal = calculate_calorie_goal(preset_data['weight'], preset_data['height'], preset_data['age'], preset_data['activity'])
+    calorie_goal = calculate_calorie_goal(preset_data['weight'], preset_data['height'], preset_data['age'],
+                                          preset_data['activity'])
 
     users[user_id] = {
         "weight": preset_data['weight'],
@@ -446,5 +549,9 @@ def setup_handlers(dp):
     dp.callback_query.register(set_profile, lambda c: c.data == 'set_profile')
 
 if __name__ == "__main__":
+    import logging
+    from aiohttp import web
+    logging.basicConfig(level=logging.INFO)
+    port = int(os.environ.get("PORT", 8080))
     setup_handlers(dp)
-    asyncio.run(dp.start_polling(bot))
+    web.run_app(app, host="0.0.0.0", port=port)
