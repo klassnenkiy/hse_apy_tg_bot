@@ -437,7 +437,6 @@ async def main():
     port = int(os.environ.get("PORT", 8080))
     await web.run_app(app, host="0.0.0.0", port=port)
 
-
 def setup_handlers(dp):
     dp.include_router(router)
     dp.message.register(start, Command("start"))
