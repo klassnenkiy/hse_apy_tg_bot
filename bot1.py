@@ -437,11 +437,11 @@ async def main():
     # Initialize app and set up startup/shutdown
     app.on_startup.append(on_startup)
     app.on_shutdown.append(on_shutdown)
-
-    # Start the aiogram polling in the background
+    setup_handlers(dp)
+    # Start the aiogram polling in the background (using asyncio.create_task)
     asyncio.create_task(start_polling())
 
-    # Run the aiohttp app
+    # Run the aiohttp app (aiohttp will handle its own event loop)
     port = int(os.environ.get("PORT", 8080))
     await web.run_app(app, host="0.0.0.0", port=port)
 
