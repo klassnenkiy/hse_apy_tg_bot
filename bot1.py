@@ -36,9 +36,7 @@ async def handle_message(message: types.Message):
     # Обработчик для получения сообщений
     await message.answer(f"Received your message: {message.text}")
 
-app = web.Application()
-app.on_startup.append(on_startup)
-app.on_shutdown.append(on_shutdown)
+
 
 # Старт polling
 async def start_polling():
@@ -437,9 +435,9 @@ def setup_handlers(dp):
     dp.include_router(router)
     dp.message.register(set_profile, Command("set_profile"))
     dp.callback_query.register(set_profile, lambda c: c.data == 'set_profile')
-
     logging.basicConfig(level=logging.INFO)
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
-    asyncio.run(main())
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main())
