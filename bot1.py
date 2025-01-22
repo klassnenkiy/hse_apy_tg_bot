@@ -438,7 +438,6 @@ async def main():
     await web.run_app(app, host="0.0.0.0", port=port)
 
 def setup_handlers(dp):
-    dp.include_router(router)
     dp.message.register(start, Command("start"))
     dp.callback_query.register(set_profile, lambda c: c.data == 'set_profile')
     logging.basicConfig(level=logging.INFO)
