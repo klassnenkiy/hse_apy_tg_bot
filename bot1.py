@@ -427,20 +427,19 @@ async def get_recommendations(message: Message):
         await message.reply("Не удалось получить рекомендации.")
 
 
+async def main():
+    setup_handlers(dp)
+    asyncio.create_task(start_polling())
+    port = int(os.environ.get("PORT", 8080))
+    await web.run_app(app, host="0.0.0.0", port=port)
+
 def setup_handlers(dp):
     dp.include_router(router)
     dp.message.register(set_profile, Command("set_profile"))
     dp.callback_query.register(set_profile, lambda c: c.data == 'set_profile')
 
-if __name__ == "__main__":
-    import logging
-
     logging.basicConfig(level=logging.INFO)
-    import asyncio
 
-    asyncio.create_task(start_polling())
-
-    # Запуск aiohttp сервера (можно настроить дополнительные маршруты, если нужно)
-    port = int(os.environ.get("PORT", 8080))
-    web.run_app(app, host="0.0.0.0", port=port)
-    setup_handlers(dp)
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO)
+    asyncio.run(main())
