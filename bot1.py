@@ -21,25 +21,31 @@ router = Router()
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher(bot=bot)
-
+dp = Dispatcher(storage=MemoryStorage())
+WEBHOOK_URL = f"https://hse-apy-tg-bot.onrender.com/webhook"
 users = {}
 
+
 async def on_startup(app):
-    logging.info("Bot is starting up...")
+    await bot.set_webhook(WEBHOOK_URL)
+    logging.info(f"Webhook установлен на {WEBHOOK_URL}")
 
 async def on_shutdown(app):
-    logging.info("Bot is shutting down...")
+    logging.info("Удаление Webhook...")
+    await bot.delete_webhook()
     await bot.session.close()
 
-# Основной обработчик для асинхронного polling
-async def start_polling():
-    logging.info("Starting polling...")
-    await dp.start_polling()
+async def handle_webhook(request):
+    body = await request.json()
+    update = types.Update(**body)
+    await dp.feed_update(bot, update)
+    return web.Response()
 
-# Функция для запуска веб-сервера aiohttp
-async def on_startup_web(app):
-    logging.info("Starting web server...")
+
+app = web.Application()
+app.router.add_post("/webhook", handle_webhook)
+app.on_startup.append(on_startup)
+app.on_shutdown.append(on_shutdown)
 
 main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Настроить профиль", callback_data="set_profile")],
@@ -424,30 +430,14 @@ async def get_recommendations(message: Message):
 
 
 def setup_handlers(dp):
-    dp.message.register(start, Command("start"))
-    dp.callback_query.register(set_profile, lambda c: c.data == 'set_profile')
-    logging.basicConfig(level=logging.INFO)
-
-
-async def main():
-    # Настройка веб-приложения aiohttp
-    app = web.Application()
-    app.on_startup.append(on_startup_web)
-    app.on_shutdown.append(on_shutdown)
-    setup_handlers(dp)
-    # Добавляем маршруты
-    app.router.add_get('/', lambda request: web.Response(text="Hello, world"))
-
-    # Регистрация маршрутов для Aiogram
     dp.include_router(router)
-
-    # Запускаем бота и веб-сервер в одном цикле событий
-    await asyncio.gather(
-        start_polling(),  # Запуск бота (Polling)
-        web.run_app(app, host="0.0.0.0", port=8080)  # Запуск веб-сервера
-    )
-
+    dp.message.register(set_profile, Command("set_profile"))
+    dp.callback_query.register(set_profile, lambda c: c.data == 'set_profile')
 
 if __name__ == "__main__":
+    import logging
+    from aiohttp import web
     logging.basicConfig(level=logging.INFO)
-    asyncio.run(main())
+    port = int(os.environ.get("PORT", 8080))
+    setup_handlers(dp)
+    web.run_app(app, host="0.0.0.0", port=port)
