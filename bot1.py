@@ -21,7 +21,8 @@ router = Router()
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=API_TOKEN)
-dp = Dispatcher(storage=MemoryStorage())
+dp = Dispatcher(bot, storage=MemoryStorage())  # Инициализируем dispatcher с bot
+app = web.Application()
 
 users = {}
 
@@ -32,9 +33,10 @@ async def on_shutdown(app):
     logging.info("Bot is shutting down...")
     await bot.session.close()
 
-async def handle_message(message: types.Message):
-    # Обработчик для получения сообщений
-    await message.answer(f"Received your message: {message.text}")
+# Старт polling
+async def start_polling():
+    logging.info("Starting polling...")
+    await dp.start_polling()
 
 
 
@@ -426,16 +428,22 @@ async def get_recommendations(message: Message):
 
 
 async def main():
+    dp.include_router(router)
+    app.on_startup.append(on_startup)
+    app.on_shutdown.append(on_shutdown)
     setup_handlers(dp)
     asyncio.create_task(start_polling())
+
     port = int(os.environ.get("PORT", 8080))
     await web.run_app(app, host="0.0.0.0", port=port)
 
+
 def setup_handlers(dp):
     dp.include_router(router)
-    dp.message.register(set_profile, Command("set_profile"))
+    dp.message.register(start, Command("start"))
     dp.callback_query.register(set_profile, lambda c: c.data == 'set_profile')
     logging.basicConfig(level=logging.INFO)
+
 
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO)
