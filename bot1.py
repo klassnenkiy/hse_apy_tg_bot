@@ -24,31 +24,26 @@ bot = Bot(token=API_TOKEN)
 dp = Dispatcher(storage=MemoryStorage())
 
 users = {}
-WEBHOOK_URL = f"https://hse-apy-tg-bot.onrender.com/webhook"
 
 async def on_startup(app):
-    await bot.set_webhook(WEBHOOK_URL)
-    logging.info(f"Webhook установлен на {WEBHOOK_URL}")
-    asyncio.create_task(check_and_reestablish_webhook())
+    logging.info("Bot is starting up...")
 
+async def on_shutdown(app):
+    logging.info("Bot is shutting down...")
+    await bot.session.close()
 
-async def handle_webhook(request):
-    body = await request.json()
-    update = types.Update(**body)
-    await dp.feed_update(bot, update)
-    return web.Response()
-
-async def check_and_reestablish_webhook():
-    while True:
-        webhook_info = await bot.get_webhook_info()
-        if not webhook_info.url:
-            logging.info("Webhook был удален. Устанавливаем его снова...")
-            await bot.set_webhook(WEBHOOK_URL)
-        await asyncio.sleep(360)
+async def handle_message(message: types.Message):
+    # Обработчик для получения сообщений
+    await message.answer(f"Received your message: {message.text}")
 
 app = web.Application()
-app.router.add_post("/webhook", handle_webhook)
 app.on_startup.append(on_startup)
+app.on_shutdown.append(on_shutdown)
+
+# Старт polling
+async def start_polling():
+    logging.info("Starting polling...")
+    await dp.start_polling()
 
 main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Настроить профиль", callback_data="set_profile")],
@@ -439,8 +434,13 @@ def setup_handlers(dp):
 
 if __name__ == "__main__":
     import logging
-    from aiohttp import web
+
     logging.basicConfig(level=logging.INFO)
+    import asyncio
+
+    asyncio.create_task(start_polling())
+
+    # Запуск aiohttp сервера (можно настроить дополнительные маршруты, если нужно)
     port = int(os.environ.get("PORT", 8080))
-    setup_handlers(dp)
     web.run_app(app, host="0.0.0.0", port=port)
+    setup_handlers(dp)
