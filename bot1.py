@@ -1,6 +1,10 @@
 import asyncio
 import logging
 import requests
+import matplotlib
+import matplotlib.pyplot as plt
+matplotlib.use('Agg')
+import io
 from aiogram import Bot, Dispatcher, Router, types
 from aiogram.enums import ParseMode
 from aiogram.filters import Command
@@ -27,9 +31,9 @@ main_menu = InlineKeyboardMarkup(inline_keyboard=[
     [InlineKeyboardButton(text="Записать еду", callback_data="log_food")],
     [InlineKeyboardButton(text="Записать тренировку", callback_data="log_workout")],
     [InlineKeyboardButton(text="Посмотреть прогресс", callback_data="check_progress")],
-    [InlineKeyboardButton(text="Команды", callback_data="show_commands")]
+    [InlineKeyboardButton(text="Команды", callback_data="show_commands")],
+    [InlineKeyboardButton(text="Получить рекомендации", callback_data="get_recommendations")]
 ])
-
 
 class ProfileSetup(StatesGroup):
     weight = State()
@@ -75,20 +79,9 @@ def get_food_info(product_name):
 
 @router.message(Command("start"))
 async def start(message: Message):
-    await message.reply("Привет! Я помогу тебе рассчитать нормы воды и калорий, а также вести трекинг активности. Начни с команды /set_profile.",
+    await message.reply("Привет! Я помогу тебе рассчитать нормы воды и калорий, а также вести трекинг активности. "
+                        "Начни с команды /set_profile. Или ознакомься с полным списком команд /show_commands",
                         reply_markup=main_menu)
-
-
-@router.callback_query(lambda c: c.data == 'show_commands')
-async def show_commands(callback_query: types.CallbackQuery):
-    commands = (
-        "/set_profile - Настроить профиль\n"
-        "/log_water - Записать количество выпитой воды\n"
-        "/log_food - Записать количество съеденной пищи\n"
-        "/log_workout - Записать тренировку\n"
-        "/check_progress - Посмотреть прогресс"
-    )
-    await callback_query.message.answer(commands)
 
 
 @router.callback_query()
@@ -97,9 +90,9 @@ async def handle_menu(callback_query: types.CallbackQuery, state: FSMContext):
         await state.set_state("set_profile")
         await callback_query.message.answer("Введите ваш вес (в кг):")
     elif callback_query.data == "log_water":
-        await callback_query.message.answer("Введите количество выпитой воды (в мл) с командой /log_water <количество>.")
+        await callback_query.message.answer("Введите количество выпитой воды (в мл) с командой /log_water <количество>. (например: /log_water 100)")
     elif callback_query.data == "log_food":
-        await callback_query.message.answer("Введите название продукта с командой /log_food <название продукта>.")
+        await callback_query.message.answer("Введите название продукта с командой /log_food <название продукта>. (например: /log_food банан)")
     elif callback_query.data == "log_workout":
         await callback_query.message.answer("Введите тип тренировки и время (например: /log_workout бег 30).")
     elif callback_query.data == "check_progress":
@@ -114,55 +107,51 @@ async def handle_menu(callback_query: types.CallbackQuery, state: FSMContext):
                                                 f"Калории:\n{calorie_progress}")
         else:
             await callback_query.message.answer("Сначала настройте профиль с помощью команды /set_profile.")
+    elif callback_query.data == "get_recommendations":
+        await get_recommendations(callback_query.message)
+    elif callback_query.data == "show_commands":
+        commands = (
+            "/start - Приветствие и кнопки\n"
+            "/show_commands - Список команд\n"
+            "/set_profile - Настроить профиль\n"
+            "/log_water - Записать количество выпитой воды\n"
+            "/log_food - Записать количество съеденной пищи\n"
+            "/log_workout - Записать тренировку\n"
+            "/check_progress - Посмотреть прогресс\n"
+            "/get_recommendations - Получить рекомендации\n"
+        )
+        await callback_query.message.answer(commands)
 
-
-@router.callback_query(lambda c: c.data == 'set_profile')
-async def set_profile(callback_query: types.CallbackQuery, state: FSMContext):
-    await state.set_state(ProfileSetup.weight)
-    await callback_query.message.answer("Введите ваш вес (в кг):")
-
-@router.callback_query(lambda c: c.data == 'log_water')
-async def log_water(callback_query: types.CallbackQuery):
-    await callback_query.message.answer("Введите количество выпитой воды (в мл) с командой /log_water <количество>.")
-
-
-@router.callback_query(lambda c: c.data == 'log_food')
-async def log_food(callback_query: types.CallbackQuery):
-    await callback_query.message.answer("Введите название продукта с командой /log_food <название продукта>.")
-
-@router.callback_query(lambda c: c.data == 'log_workout')
-async def log_workout(callback_query: types.CallbackQuery):
-    await callback_query.message.answer("Введите тип тренировки и время (например: /log_workout бег 30).")
-
-@router.callback_query(lambda c: c.data == 'check_progress')
-async def check_progress(callback_query: types.CallbackQuery, state: FSMContext):
-    user_id = callback_query.from_user.id
-    if user_id in users:
-        user = users[user_id]
-        water_progress = f"Выпито: {user['logged_water']} мл из {user['water_goal']} мл."
-        calorie_progress = (f"Потреблено: {user['logged_calories']} ккал из {user['calorie_goal']} ккал.\n"
-                            f"Сожжено: {user['burned_calories']} ккал.")
-        await callback_query.message.answer(f"📊 Прогресс:\n\n"
-                                            f"Вода:\n{water_progress}\n\n"
-                                            f"Калории:\n{calorie_progress}")
-    else:
-        await callback_query.message.answer("Сначала настройте профиль с помощью команды /set_profile.")
-
+@router.message(Command("show_commands"))
+async def show_commands(message: Message):
+    commands = (
+        "/start - Приветствие и кнопки\n"
+        "/show_commands - Список команд\n"
+        "/set_profile - Настроить профиль\n"
+        "/log_water - Записать количество выпитой воды\n"
+        "/log_food - Записать количество съеденной пищи\n"
+        "/log_workout - Записать тренировку\n"
+        "/check_progress - Посмотреть прогресс\n"
+        "/get_recommendations - Получить рекомендации\n"
+    )
+    await message.reply(commands)
 
 
 @router.message(Command("set_profile"))
 async def set_profile(message: Message, state: FSMContext):
     await state.set_state(ProfileSetup.weight)
-    await message.reply("Введите ваш вес (в кг):")
+    await message.answer("Введите Ваш вес (в кг):")
 
+@router.message(ProfileSetup.weight)
 async def process_weight(message: Message, state: FSMContext):
     try:
         await state.update_data(weight=int(message.text))
         await state.set_state(ProfileSetup.height)
-        await message.reply("Введите ваш рост (в см):")
+        await message.reply("Введите Ваш рост (в см):")
     except ValueError:
         await message.reply("Пожалуйста, введите корректное число для веса.")
 
+@router.message(ProfileSetup.height)
 async def process_height(message: Message, state: FSMContext):
     try:
         await state.update_data(height=int(message.text))
@@ -171,6 +160,7 @@ async def process_height(message: Message, state: FSMContext):
     except ValueError:
         await message.reply("Пожалуйста, введите корректное число для роста.")
 
+@router.message(ProfileSetup.age)
 async def process_age(message: Message, state: FSMContext):
     try:
         await state.update_data(age=int(message.text))
@@ -179,6 +169,7 @@ async def process_age(message: Message, state: FSMContext):
     except ValueError:
         await message.reply("Пожалуйста, введите корректное число для возраста.")
 
+@router.message(ProfileSetup.activity)
 async def process_activity(message: Message, state: FSMContext):
     try:
         await state.update_data(activity=int(message.text))
@@ -187,6 +178,7 @@ async def process_activity(message: Message, state: FSMContext):
     except ValueError:
         await message.reply("Пожалуйста, введите корректное число для активности.")
 
+@router.message(ProfileSetup.city)
 async def process_city(message: Message, state: FSMContext):
     data = await state.get_data()
     data['city'] = message.text
@@ -242,7 +234,7 @@ async def log_water(message: Message):
 async def log_food(message: Message, state: FSMContext):
     command_parts = message.text.split(maxsplit=1)
     if len(command_parts) < 2:
-        await message.reply("Пожалуйста, укажите название продукта.")
+        await message.reply("Пожалуйста, укажите название продукта. (например: /log_food банан)")
         return
 
     product_name = command_parts[1]
@@ -250,12 +242,33 @@ async def log_food(message: Message, state: FSMContext):
     if food_info:
         calories_per_100g = food_info['calories']
         await state.update_data(product_name=food_info['name'], calories_per_100g=calories_per_100g)
-        await message.reply(f"{food_info['name']} — {calories_per_100g} ккал на 100 г. Сколько грамм вы съели?")
+        await message.reply(f"🍌 {food_info['name']} — {calories_per_100g} ккал на 100 г. Сколько грамм вы съели?")
         await state.set_state(ProfileSetup.food_quantity)
 
     else:
         await message.reply("Не удалось найти информацию о продукте. Попробуйте другое название.")
 
+
+@router.message(ProfileSetup.food_quantity)
+async def process_food_quantity(message: Message, state: FSMContext):
+    try:
+        grams = int(message.text)
+        data = await state.get_data()
+        calories_per_100g = data['calories_per_100g']
+        consumed_calories = (calories_per_100g * grams) / 100
+
+        user_id = message.from_user.id
+        if user_id in users:
+            users[user_id]['logged_calories'] += consumed_calories
+            await message.reply(
+                f"Записано: {consumed_calories:.2f} ккал. Общая сумма потребленных калорий: {users[user_id]['logged_calories']:.2f} ккал.")
+        else:
+            await message.reply("Сначала настройте профиль с помощью команды /set_profile.")
+
+        await state.clear()
+
+    except ValueError:
+        await message.reply("Пожалуйста, введите корректное количество грамм.")
 
 
 @router.message(Command("log_workout"))
@@ -302,6 +315,55 @@ async def log_workout(message: Message):
     except ValueError:
         await message.reply("Пожалуйста, введите корректное количество минут для тренировки.")
 
+async def plot_progress(user_id):
+    user = users.get(user_id)
+    if not user:
+        return None
+
+    # Используем количество записей как основу для оси X
+    water_progress = [user['logged_water']]
+    calorie_progress = [user['logged_calories']]
+
+    # Генерируем индексы обновлений
+    updates = range(1, len(water_progress) + 1)
+
+    fig, ax = plt.subplots(1, 2, figsize=(12, 6))
+
+    ax[0].plot(updates, water_progress, marker='o', color='blue')
+    ax[0].set_title('Прогресс по воде')
+    ax[0].set_xlabel('Обновления')
+    ax[0].set_ylabel('Мл воды')
+
+    ax[1].plot(updates, calorie_progress, marker='o', color='green')
+    ax[1].set_title('Прогресс по калориям')
+    ax[1].set_xlabel('Обновления')
+    ax[1].set_ylabel('Ккал')
+
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png")
+    buf.seek(0)
+    plt.close(fig)
+    return buf
+
+
+async def get_low_calorie_food():
+    url = "https://world.openfoodfacts.org/cgi/search.pl?action=process&sort_by=calories&json=true"
+    response = requests.get(url)
+    if response.status_code == 200:
+        data = response.json()
+        products = data.get('products', [])
+        low_calorie_products = set()
+
+        for product in products:
+            calories = product.get('nutriments', {}).get('energy-kcal_100g', 0)
+            if calories <= 50:
+                low_calorie_products.add(
+                    (product.get('product_name', 'Неизвестно'), calories)
+                )
+
+        return [{'name': name, 'calories': calories} for name, calories in low_calorie_products]
+    return None
+
 
 @router.message(Command("check_progress"))
 async def check_progress(message: Message):
@@ -323,53 +385,33 @@ async def check_progress(message: Message):
                             f"Калории:\n"
                             f"{calorie_progress}\n"
                             f"Баланс: {balance_calories} ккал.")
+        graph = await plot_progress(user_id)
+        if graph:
+            graph.seek(0)
+            await bot.send_photo(message.chat.id, photo=types.FSInputFile(graph, filename="progress.png"))
+        else:
+            await message.reply("Не удалось построить график.")
     else:
         await message.reply("Сначала настройте профиль с помощью команды /set_profile.")
 
+@router.message(Command("get_recommendations"))
+async def get_recommendations(message: Message):
+    products = await get_low_calorie_food()
 
-async def process_food_quantity(message: Message, state: FSMContext):
-    try:
-        grams = int(message.text)
-        data = await state.get_data()
-        calories_per_100g = data['calories_per_100g']
-        consumed_calories = (calories_per_100g * grams) / 100
-
-        user_id = message.from_user.id
-        if user_id in users:
-            users[user_id]['logged_calories'] += consumed_calories
-            await message.reply(
-                f"Записано: {consumed_calories:.2f} ккал. Общая сумма потребленных калорий: {users[user_id]['logged_calories']:.2f} ккал.")
-        else:
-            await message.reply("Сначала настройте профиль с помощью команды /set_profile.")
-
-        await state.clear()
-
-    except ValueError:
-        await message.reply("Пожалуйста, введите корректное количество грамм.")
-
-
-
-dp.message.register(start, Command("start"))
-dp.message.register(set_profile, Command("set_profile"))
-dp.message.register(log_water, Command("log_water"))
-dp.message.register(log_food, Command("log_food"))
-dp.message.register(log_workout, Command("log_workout"))
-dp.message.register(check_progress, Command("check_progress"))
-dp.message.register(process_weight, ProfileSetup.weight)
-dp.message.register(process_height, ProfileSetup.height)
-dp.message.register(process_age, ProfileSetup.age)
-dp.message.register(process_activity, ProfileSetup.activity)
-dp.message.register(process_city, ProfileSetup.city)
-dp.message.register(process_food_quantity, ProfileSetup.food_quantity)
+    if products:
+        response = "Рекомендованные продукты с низким содержанием калорий:\n"
+        for product in products[:5]:
+            response += f"{product['name']} — {product['calories']} ккал на 100 г\n"
+        await message.reply(response)
+    else:
+        await message.reply("Не удалось получить рекомендации.")
 
 
 def setup_handlers(dp):
     dp.include_router(router)
+    dp.message.register(set_profile, Command("set_profile"))
+    dp.callback_query.register(set_profile, lambda c: c.data == 'set_profile')
 
 if __name__ == "__main__":
-
-    async def main():
-        setup_handlers(dp)
-        await dp.start_polling(bot)
-
-    asyncio.run(main())
+    setup_handlers(dp)
+    asyncio.run(dp.start_polling(bot))
